@@ -205,6 +205,7 @@ def web_intelligence():
     })
 
 @intelligence_bp.route('/social-media-search', methods=['POST'])
+@require_auth
 async def social_media_search():
     try:
         data = request.get_json()
@@ -213,12 +214,37 @@ async def social_media_search():
         if not username:
             return jsonify({'error': 'Username is required'}), 400
             
-        # Run the async search
-        results = await search_username(username)
+        # Create a new report
+        report = Report(
+            id=str(uuid.uuid4()),
+            user_id=request.user_id,
+            report_type='social',
+            target=username,
+            status='processing'
+        )
+        db.session.add(report)
+        db.session.commit()
+        
+        try:
+            # Run the Sherlock search
+            results = await sherlock_service.search_username(username)
+            
+            if results['success']:
+                report.status = 'completed'
+                report.result = results
+            else:
+                report.status = 'failed'
+                report.result = {'error': results.get('error', 'Failed to process social media search')}
+        except Exception as e:
+            report.status = 'failed'
+            report.result = {'error': str(e)}
+            
+        db.session.commit()
         
         return jsonify({
-            'success': True,
-            'results': results
+            'id': report.id,
+            'status': report.status,
+            'result': report.result
         })
         
     except Exception as e:

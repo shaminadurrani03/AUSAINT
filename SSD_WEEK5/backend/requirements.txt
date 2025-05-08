@@ -7,8 +7,13 @@ requests==2.26.0
 supabase==2.15.1
 asgiref==3.7.2
 uvicorn==0.15.0
-aiohttp==3.8.1
-pandas==1.3.3
-numpy==1.21.2
+aiohttp>=3.11.18,<4.0.0
+numpy>=1.26.0,<2.0.0
+pandas>=2.2.0
 beautifulsoup4==4.9.3
 lxml==4.6.3
+certifi>=2019.3.9
+colorama>=0.4.1
+PySocks>=1.7.0
+requests-futures>=1.0.0
+torf>=1.0.0
