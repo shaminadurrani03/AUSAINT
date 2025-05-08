@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.report import Report
 from extensions import db
+from middleware.auth import require_auth
 import uuid
 import os
 import requests
@@ -9,9 +10,9 @@ from datetime import datetime
 intelligence_bp = Blueprint('intelligence', __name__)
 
 @intelligence_bp.route('/reports', methods=['GET'])
+@require_auth
 def get_reports():
-    user_id = request.headers.get('User-Id')  # Get from auth middleware
-    reports = Report.query.filter_by(user_id=user_id).order_by(Report.created_at.desc()).all()
+    reports = Report.query.filter_by(user_id=request.user_id).order_by(Report.created_at.desc()).all()
     return jsonify([{
         'id': report.id,
         'report_type': report.report_type,
@@ -23,9 +24,9 @@ def get_reports():
     } for report in reports])
 
 @intelligence_bp.route('/reports/<report_id>', methods=['GET'])
+@require_auth
 def get_report(report_id):
-    user_id = request.headers.get('User-Id')  # Get from auth middleware
-    report = Report.query.filter_by(id=report_id, user_id=user_id).first_or_404()
+    report = Report.query.filter_by(id=report_id, user_id=request.user_id).first_or_404()
     return jsonify({
         'id': report.id,
         'report_type': report.report_type,
@@ -37,6 +38,7 @@ def get_report(report_id):
     })
 
 @intelligence_bp.route('/intelligence/email', methods=['POST'])
+@require_auth
 def email_intelligence():
     data = request.get_json()
     email = data.get('email')
@@ -45,7 +47,7 @@ def email_intelligence():
 
     report = Report(
         id=str(uuid.uuid4()),
-        user_id=request.headers.get('User-Id'),
+        user_id=request.user_id,
         report_type='email',
         target=email,
         status='processing'
@@ -77,6 +79,7 @@ def email_intelligence():
     })
 
 @intelligence_bp.route('/intelligence/ip', methods=['POST'])
+@require_auth
 def ip_intelligence():
     data = request.get_json()
     ip = data.get('ip')
@@ -85,7 +88,7 @@ def ip_intelligence():
 
     report = Report(
         id=str(uuid.uuid4()),
-        user_id=request.headers.get('User-Id'),
+        user_id=request.user_id,
         report_type='ip',
         target=ip,
         status='processing'
@@ -117,6 +120,7 @@ def ip_intelligence():
     })
 
 @intelligence_bp.route('/intelligence/social', methods=['POST'])
+@require_auth
 def social_intelligence():
     data = request.get_json()
     username = data.get('username')
@@ -126,7 +130,7 @@ def social_intelligence():
 
     report = Report(
         id=str(uuid.uuid4()),
-        user_id=request.headers.get('User-Id'),
+        user_id=request.user_id,
         report_type='social',
         target=f"{platform}:{username}",
         status='processing'
@@ -158,6 +162,7 @@ def social_intelligence():
     })
 
 @intelligence_bp.route('/intelligence/web', methods=['POST'])
+@require_auth
 def web_intelligence():
     data = request.get_json()
     url = data.get('url')
@@ -166,7 +171,7 @@ def web_intelligence():
 
     report = Report(
         id=str(uuid.uuid4()),
-        user_id=request.headers.get('User-Id'),
+        user_id=request.user_id,
         report_type='web',
         target=url,
         status='processing'
