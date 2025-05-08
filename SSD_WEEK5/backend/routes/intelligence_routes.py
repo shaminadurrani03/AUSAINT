@@ -2,12 +2,15 @@ from flask import Blueprint, request, jsonify
 from models.report import Report
 from extensions import db
 from middleware.auth import require_auth
+from services.sherlock_service import SherlockService, search_username
 import uuid
 import os
 import requests
 from datetime import datetime
+import asyncio
 
 intelligence_bp = Blueprint('intelligence', __name__)
+sherlock_service = SherlockService()
 
 @intelligence_bp.route('/reports', methods=['GET'])
 @require_auth
@@ -121,36 +124,34 @@ def ip_intelligence():
 
 @intelligence_bp.route('/intelligence/social', methods=['POST'])
 @require_auth
-def social_intelligence():
+async def social_intelligence():
     data = request.get_json()
     username = data.get('username')
     platform = data.get('platform')
-    if not username or not platform:
-        return jsonify({'error': 'Username and platform are required'}), 400
+    
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
 
     report = Report(
         id=str(uuid.uuid4()),
         user_id=request.user_id,
         report_type='social',
-        target=f"{platform}:{username}",
+        target=username,
         status='processing'
     )
     db.session.add(report)
     db.session.commit()
 
-    # Call Supabase function
     try:
-        response = requests.post(
-            f"{os.getenv('SUPABASE_URL')}/functions/v1/social_media_intelligence",
-            json={'username': username, 'platform': platform},
-            headers={'Authorization': f"Bearer {os.getenv('SUPABASE_ANON_KEY')}"}
-        )
-        if response.status_code == 200:
+        # Use Sherlock to search for the username
+        result = await sherlock_service.search_username(username)
+        
+        if result['success']:
             report.status = 'completed'
-            report.result = response.json()
+            report.result = result
         else:
             report.status = 'failed'
-            report.result = {'error': 'Failed to process social media intelligence'}
+            report.result = {'error': result.get('error', 'Failed to process social media intelligence')}
     except Exception as e:
         report.status = 'failed'
         report.result = {'error': str(e)}
@@ -158,7 +159,8 @@ def social_intelligence():
     db.session.commit()
     return jsonify({
         'id': report.id,
-        'status': report.status
+        'status': report.status,
+        'result': report.result
     })
 
 @intelligence_bp.route('/intelligence/web', methods=['POST'])
@@ -200,4 +202,27 @@ def web_intelligence():
     return jsonify({
         'id': report.id,
         'status': report.status
-    }) 
+    })
+
+@intelligence_bp.route('/social-media-search', methods=['POST'])
+async def social_media_search():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        
+        if not username:
+            return jsonify({'error': 'Username is required'}), 400
+            
+        # Run the async search
+        results = await search_username(username)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500 

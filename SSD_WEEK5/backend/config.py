@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-USE_SUPABASE = os.getenv("USE_SUPABASE", "false").lower() == "true"
+# Set USE_SUPABASE to True by default
+USE_SUPABASE = True
 
 if USE_SUPABASE:
     db_user = os.getenv("SUPABASE_USER")

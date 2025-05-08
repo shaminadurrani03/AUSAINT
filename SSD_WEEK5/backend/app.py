@@ -5,6 +5,7 @@ from extensions import db
 from routes.auth_routes import auth_bp
 from routes.intelligence_routes import intelligence_bp
 import os
+from asgiref.wsgi import WsgiToAsgi
 
 def create_app():
     app = Flask(__name__)
@@ -34,4 +35,7 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     port = int(os.environ.get('PORT', 5001))
-    app.run(debug=True, port=port)
+    # Convert Flask app to ASGI
+    asgi_app = WsgiToAsgi(app)
+    import uvicorn
+    uvicorn.run(asgi_app, host="0.0.0.0", port=port)
