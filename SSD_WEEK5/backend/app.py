@@ -2,6 +2,7 @@ from flask import Flask
 from config import Config
 from extensions import db
 from routes.auth_routes import auth_bp
+from routes.intelligence_routes import intelligence_bp
 import os
 
 def create_app():
@@ -10,7 +11,9 @@ def create_app():
 
     db.init_app(app)
 
+    # Register blueprints
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(intelligence_bp, url_prefix="/api")
 
     @app.route('/')
     def index():
