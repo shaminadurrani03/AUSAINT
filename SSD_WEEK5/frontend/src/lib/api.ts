@@ -58,40 +58,68 @@ export const api = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const { data, error } = await supabase
-        .from("user_settings")
-        .select("api_key")
-        .eq("user_id", user.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("user_settings")
+          .select("api_key")
+          .eq("user_id", user.id)
+          .single();
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          // If no settings exist, create them
-          return await api.settings.generateApiKey();
+        if (error) {
+          console.error("Error fetching API key:", error);
+          // If no settings exist, generate a new key
+          if (error.code === "PGRST116") {
+            return await api.settings.generateApiKey();
+          }
+          throw new Error("Failed to fetch API key. Please try again later.");
         }
-        throw error;
-      }
 
-      return { apiKey: data.api_key };
+        return { apiKey: data.api_key };
+      } catch (error) {
+        console.error("Error fetching API key:", error);
+        throw new Error("Failed to fetch API key. Please try again later.");
+      }
     },
 
     generateApiKey: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const newApiKey = crypto.randomUUID();
+      try {
+        // Generate a new API key
+        const newApiKey = crypto.randomUUID();
 
-      const { data, error } = await supabase
-        .from("user_settings")
-        .upsert({
-          user_id: user.id,
-          api_key: newApiKey,
-        })
-        .select()
-        .single();
+        // First try to delete any existing settings
+        const { error: deleteError } = await supabase
+          .from("user_settings")
+          .delete()
+          .eq("user_id", user.id);
 
-      if (error) throw error;
-      return { apiKey: data.api_key };
+        if (deleteError) {
+          console.error("Error deleting existing settings:", deleteError);
+          // Continue anyway as the insert might still work
+        }
+
+        // Insert new settings
+        const { data, error: insertError } = await supabase
+          .from("user_settings")
+          .insert({
+            user_id: user.id,
+            api_key: newApiKey,
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("Error inserting new settings:", insertError);
+          throw new Error("Failed to generate API key. Please try again later.");
+        }
+
+        return { apiKey: data.api_key };
+      } catch (error) {
+        console.error("Error generating API key:", error);
+        throw new Error("Failed to generate API key. Please try again later.");
+      }
     },
   },
 

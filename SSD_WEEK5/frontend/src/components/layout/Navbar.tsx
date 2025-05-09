@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, Menu, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+
+// Define available tools
+const tools = [
+  { name: "Social Media Intelligence", path: "/dashboard/social" },
+  { name: "IP & Domain Analysis", path: "/dashboard/ip-domain" },
+  { name: "Email & Phone Investigation", path: "/dashboard/email-phone" },
+  { name: "Web Scraping", path: "/dashboard/web-scraping" },
+  { name: "Secure Reporting", path: "/dashboard/reporting" },
+];
 
 export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -31,9 +49,34 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
     navigate("/settings");
   };
 
-  const handleApiKeys = () => {
-    navigate("/settings#api-keys");
+  // Filter tools based on search query
+  const filteredTools = tools.filter((tool) =>
+    tool.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Handle search input click
+  const handleSearchClick = () => {
+    setShowSearch(true);
   };
+
+  // Handle tool selection
+  const handleToolSelect = (path: string) => {
+    navigate(path);
+    setShowSearch(false);
+    setSearchQuery("");
+  };
+
+  // Close search on escape key
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowSearch(false);
+      }
+    };
+
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -60,6 +103,7 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
               className="w-64 pl-8"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onClick={handleSearchClick}
             />
           </div>
           
@@ -86,9 +130,6 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
               <DropdownMenuItem onClick={handleSettings}>
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleApiKeys}>
-                API Keys
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 Log out
@@ -97,6 +138,27 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
           </DropdownMenu>
         </div>
       </div>
+
+      <CommandDialog open={showSearch} onOpenChange={setShowSearch}>
+        <CommandInput 
+          placeholder="Search tools..." 
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+        />
+        <CommandList>
+          <CommandEmpty>No tools found.</CommandEmpty>
+          <CommandGroup heading="Tools">
+            {filteredTools.map((tool) => (
+              <CommandItem
+                key={tool.path}
+                onSelect={() => handleToolSelect(tool.path)}
+              >
+                {tool.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </header>
   );
 }

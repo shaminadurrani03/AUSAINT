@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
 // Define the auth context type
-interface AuthContextType {
+export type AuthContextType = {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
@@ -14,8 +14,10 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  toggle2FA: (enable: boolean) => Promise<void>;
   configError: boolean;
-}
+};
 
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [configError, setConfigError] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -182,20 +185,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      isLoading,
-      isAuthenticated: !!session,
-      signIn,
-      signUp,
-      signOut,
-      configError
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const updatePassword = async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error("No user found");
+
+    // First verify the current password
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: currentPassword,
+    });
+    if (signInError) throw new Error("Current password is incorrect");
+
+    // Then update to the new password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (updateError) throw updateError;
+  };
+
+  const toggle2FA = async (enable: boolean) => {
+    // This is a placeholder for 2FA implementation
+    // In a real application, you would implement the actual 2FA logic here
+    throw new Error("2FA not implemented yet");
+  };
+
+  const value = {
+    user,
+    session,
+    isLoading,
+    isAuthenticated,
+    signIn,
+    signUp,
+    signOut,
+    updatePassword,
+    toggle2FA,
+    configError,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

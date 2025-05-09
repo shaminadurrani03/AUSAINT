@@ -56,7 +56,7 @@ export function Sidebar({ isMobile = false }: { isMobile?: boolean }) {
         isMobile && "flex fixed md:hidden"
       )}
     >
-      <SidebarContent>
+      <SidebarContent className="pt-16">
         <SidebarGroup>
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
