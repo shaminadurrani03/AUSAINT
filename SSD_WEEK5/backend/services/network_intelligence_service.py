@@ -1,6 +1,5 @@
 import requests
 import whois
-import sublist3r
 import dns.resolver
 import logging
 from typing import Dict, List, Any, Optional
@@ -9,6 +8,8 @@ import json
 import traceback
 import os
 from dotenv import load_dotenv
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Load environment variables
 load_dotenv()
@@ -19,14 +20,14 @@ logger = logging.getLogger(__name__)
 
 class NetworkIntelligenceService:
     def __init__(self):
-        self.ipinfo_token = os.getenv('IPINFO_TOKEN', '')  # Get from environment variable
-        if not self.ipinfo_token:
-            logger.warning("IPINFO_TOKEN not found in environment variables. IP lookup will be limited.")
-        self.hackertarget_api = "https://api.hackertarget.com/dnslookup/"
+        # Free APIs and services
+        self.ip_api_url = "http://ip-api.com/json/"  # Free IP geolocation API
+        self.hackertarget_api = "https://api.hackertarget.com/"
+        self.ipinfo_token = os.getenv("IPINFO_TOKEN")
         
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
         """
-        Lookup IP geolocation information using ipinfo.io API
+        Lookup IP geolocation information using multiple sources
         """
         try:
             logger.info(f"Looking up IP information for {ip}")
@@ -37,61 +38,90 @@ class NetworkIntelligenceService:
             except socket.error:
                 raise ValueError("Invalid IP address format")
             
-            # Make request to ipinfo.io API
-            headers = {}
-            if self.ipinfo_token:
-                headers["Authorization"] = f"Bearer {self.ipinfo_token}"
+            # Try ip-api.com first
+            try:
+                response = requests.get(
+                    f"{self.ip_api_url}{ip}",
+                    timeout=5
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("status") == "success":
+                    result = {
+                        "ip": ip,
+                        "city": data.get("city"),
+                        "region": data.get("regionName"),
+                        "country": data.get("country"),
+                        "location": f"{data.get('lat')},{data.get('lon')}",
+                        "org": data.get("org"),
+                        "asn": data.get("as"),
+                        "isp": data.get("isp"),
+                        "timezone": data.get("timezone")
+                    }
+                else:
+                    raise Exception("IP lookup failed")
+            except Exception as e:
+                logger.warning(f"ip-api.com lookup failed: {str(e)}")
+                # Fallback to basic information
+                result = {
+                    "ip": ip,
+                    "error": "Detailed lookup failed, showing basic information"
+                }
             
-            response = requests.get(
-                f"https://ipinfo.io/{ip}/json",
-                headers=headers
-            )
-            response.raise_for_status()
-            
-            data = response.json()
-            result = {
-                "ip": data.get("ip"),
-                "city": data.get("city"),
-                "region": data.get("region"),
-                "country": data.get("country"),
-                "location": data.get("loc"),
-                "org": data.get("org"),
-                "postal": data.get("postal"),
-                "timezone": data.get("timezone")
-            }
+            # Get hostname using reverse DNS
+            try:
+                hostname = socket.gethostbyaddr(ip)[0]
+                result["hostname"] = hostname
+            except:
+                result["hostname"] = None
             
             logger.info(f"Successfully retrieved IP information for {ip}")
             return result
             
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logger.error(f"Error looking up IP {ip}: {str(e)}")
             raise Exception(f"Failed to lookup IP information: {str(e)}")
-        except Exception as e:
-            logger.error(f"Unexpected error looking up IP {ip}: {str(e)}")
-            raise Exception(f"An unexpected error occurred: {str(e)}")
 
     async def lookup_whois(self, domain: str) -> Dict[str, Any]:
         """
-        Get WHOIS information for a domain using python-whois
+        Get WHOIS information using multiple methods
         """
         try:
             logger.info(f"Looking up WHOIS information for {domain}")
             
-            # Get WHOIS information
-            w = whois.whois(domain)
-            
-            # Convert WHOIS data to dictionary
-            result = {
-                "domain_name": w.domain_name,
-                "registrar": w.registrar,
-                "creation_date": str(w.creation_date) if w.creation_date else None,
-                "expiration_date": str(w.expiration_date) if w.expiration_date else None,
-                "updated_date": str(w.updated_date) if w.updated_date else None,
-                "name_servers": w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else [],
-                "status": w.status if isinstance(w.status, list) else [w.status] if w.status else [],
-                "emails": w.emails if isinstance(w.emails, list) else [w.emails] if w.emails else [],
-                "dnssec": w.dnssec if hasattr(w, 'dnssec') else None
-            }
+            # Try python-whois first
+            try:
+                w = whois.whois(domain)
+                result = {
+                    "domain_name": w.domain_name,
+                    "registrar": w.registrar,
+                    "creation_date": str(w.creation_date) if w.creation_date else None,
+                    "expiration_date": str(w.expiration_date) if w.expiration_date else None,
+                    "updated_date": str(w.updated_date) if w.updated_date else None,
+                    "name_servers": w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else [],
+                    "status": w.status if isinstance(w.status, list) else [w.status] if w.status else [],
+                    "emails": w.emails if isinstance(w.emails, list) else [w.emails] if w.emails else []
+                }
+            except Exception as whois_error:
+                logger.warning(f"python-whois failed: {str(whois_error)}")
+                # Fallback to HackerTarget API
+                try:
+                    response = requests.get(
+                        f"{self.hackertarget_api}whois/?q={domain}",
+                        timeout=10
+                    )
+                    response.raise_for_status()
+                    result = {
+                        "domain_name": domain,
+                        "raw_whois": response.text
+                    }
+                except Exception as api_error:
+                    logger.error(f"HackerTarget API fallback failed: {str(api_error)}")
+                    result = {
+                        "domain_name": domain,
+                        "error": "WHOIS lookup failed"
+                    }
             
             logger.info(f"Successfully retrieved WHOIS information for {domain}")
             return result
@@ -102,19 +132,55 @@ class NetworkIntelligenceService:
 
     async def find_subdomains(self, domain: str) -> Dict[str, Any]:
         """
-        Find subdomains using Sublist3r
+        Find subdomains using multiple methods with rate limiting
         """
         try:
             logger.info(f"Finding subdomains for {domain}")
             
-            # Use Sublist3r to enumerate subdomains
-            subdomains = sublist3r.main(domain, 40, savefile=None, ports=None, silent=True, verbose=False, 
-                                      enable_bruteforce=False, engines=None)
+            subdomains = set()
+            
+            # Method 1: Try common subdomain prefixes
+            common_prefixes = ['www', 'mail', 'ftp', 'smtp', 'pop', 'ns1', 'ns2', 'admin', 'blog', 'shop', 'store', 'api', 'dev', 'test', 'stage', 'prod']
+            
+            resolver = dns.resolver.Resolver()
+            resolver.nameservers = ['8.8.8.8', '8.8.4.4']
+            resolver.timeout = 2
+            resolver.lifetime = 2
+            
+            # Use ThreadPoolExecutor for parallel DNS lookups
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_prefix = {
+                    executor.submit(self._check_subdomain, f"{prefix}.{domain}", resolver): prefix
+                    for prefix in common_prefixes
+                }
+                
+                for future in as_completed(future_to_prefix):
+                    try:
+                        subdomain = future.result()
+                        if subdomain:
+                            subdomains.add(subdomain)
+                    except Exception as e:
+                        logger.warning(f"Subdomain check failed: {str(e)}")
+            
+            # Method 2: Try HackerTarget API
+            try:
+                response = requests.get(
+                    f"{self.hackertarget_api}hostsearch/?q={domain}",
+                    timeout=10
+                )
+                response.raise_for_status()
+                
+                for line in response.text.splitlines():
+                    if line.strip():
+                        subdomain = line.split(',')[0]
+                        subdomains.add(subdomain)
+            except Exception as api_error:
+                logger.warning(f"HackerTarget API failed: {str(api_error)}")
             
             result = {
                 "domain": domain,
                 "total_subdomains": len(subdomains),
-                "subdomains": subdomains
+                "subdomains": sorted(list(subdomains))
             }
             
             logger.info(f"Successfully found {len(subdomains)} subdomains for {domain}")
@@ -123,6 +189,16 @@ class NetworkIntelligenceService:
         except Exception as e:
             logger.error(f"Error finding subdomains for {domain}: {str(e)}")
             raise Exception(f"Failed to find subdomains: {str(e)}")
+
+    async def _check_subdomain(self, subdomain: str, resolver: dns.resolver.Resolver) -> Optional[str]:
+        """
+        Check if a subdomain exists
+        """
+        try:
+            resolver.resolve(subdomain, 'A')
+            return subdomain
+        except:
+            return None
 
     async def lookup_dns(self, domain: str, record_type: str = 'A') -> Dict[str, Any]:
         """
@@ -138,8 +214,6 @@ class NetworkIntelligenceService:
                 resolver = dns.resolver.Resolver()
                 resolver.timeout = 5
                 resolver.lifetime = 5
-                
-                # Use Google's DNS servers for reliability
                 resolver.nameservers = ['8.8.8.8', '8.8.4.4']
                 
                 answers = resolver.resolve(domain, record_type)
@@ -155,7 +229,7 @@ class NetworkIntelligenceService:
                 # Fallback to HackerTarget API
                 try:
                     response = requests.get(
-                        f"https://api.hackertarget.com/dnslookup/?q={domain}",
+                        f"{self.hackertarget_api}dnslookup/?q={domain}",
                         timeout=10
                     )
                     response.raise_for_status()
@@ -199,16 +273,22 @@ class NetworkIntelligenceService:
             # Find subdomains
             subdomains_info = await self.find_subdomains(domain)
             
-            # Get common DNS records
-            dns_records = {
-                "A": await self.lookup_dns(domain, 'A'),
-                "AAAA": await self.lookup_dns(domain, 'AAAA'),
-                "MX": await self.lookup_dns(domain, 'MX'),
-                "NS": await self.lookup_dns(domain, 'NS'),
-                "TXT": await self.lookup_dns(domain, 'TXT')
-            }
+            # Get DNS records
+            dns_records = {}
+            record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT']
             
-            # Combine all results
+            for record_type in record_types:
+                try:
+                    dns_records[record_type] = await self.lookup_dns(domain, record_type)
+                except Exception as e:
+                    logger.warning(f"Failed to get {record_type} records: {str(e)}")
+                    dns_records[record_type] = {
+                        "domain": domain,
+                        "record_type": record_type,
+                        "total_records": 0,
+                        "records": []
+                    }
+            
             result = {
                 "domain": domain,
                 "whois": whois_info,

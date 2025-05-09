@@ -1,95 +1,119 @@
 <template>
-  <div class="network-intelligence">
-    <h2 class="text-2xl font-bold mb-6">Network Intelligence</h2>
+  <div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-4">Network Intelligence</h1>
     
     <!-- IP Lookup Section -->
     <div class="mb-8">
-      <h3 class="text-xl font-semibold mb-4">IP Lookup</h3>
-      <div class="flex gap-4 mb-4">
+      <h2 class="text-xl font-semibold mb-2">IP Lookup</h2>
+      <div class="flex gap-2">
         <input
           v-model="ipAddress"
           type="text"
-          placeholder="Enter IP address (e.g., 8.8.8.8)"
+          placeholder="Enter IP address"
           class="flex-1 p-2 border rounded"
-          :class="{ 'border-red-500': ipError }"
         />
         <button
           @click="lookupIp"
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          :disabled="isLoading"
+          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
-          {{ isLoading ? 'Loading...' : 'Lookup IP' }}
+          Lookup
         </button>
       </div>
-      <div v-if="ipError" class="text-red-500 mb-4">{{ ipError }}</div>
-      <div v-if="ipResult" class="bg-white p-4 rounded shadow">
-        <h4 class="font-semibold mb-2">IP Information</h4>
-        <div class="grid grid-cols-2 gap-4">
-          <div v-for="(value, key) in ipResult" :key="key" class="p-2 bg-gray-50 rounded">
+      <div v-if="ipInfo" class="mt-4">
+        <h3 class="font-semibold mb-2">IP Information:</h3>
+        <div class="bg-gray-100 p-4 rounded">
+          <div v-for="(value, key) in ipInfo" :key="key" class="mb-2">
             <span class="font-medium">{{ formatKey(key) }}:</span>
-            <span class="ml-2">{{ value }}</span>
+            <span>{{ formatValue(value) }}</span>
           </div>
         </div>
+        <button
+          v-if="currentReportId"
+          @click="downloadIpReport"
+          class="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Download Report
+        </button>
       </div>
     </div>
 
     <!-- Domain Analysis Section -->
-    <div>
-      <h3 class="text-xl font-semibold mb-4">Domain Analysis</h3>
-      <div class="flex gap-4 mb-4">
+    <div class="mb-8">
+      <h2 class="text-xl font-semibold mb-2">Domain Analysis</h2>
+      <div class="flex gap-2">
         <input
           v-model="domain"
           type="text"
-          placeholder="Enter domain (e.g., example.com)"
+          placeholder="Enter domain"
           class="flex-1 p-2 border rounded"
-          :class="{ 'border-red-500': domainError }"
         />
         <button
           @click="analyzeDomain"
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          :disabled="isLoading"
+          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
-          {{ isLoading ? 'Analyzing...' : 'Analyze Domain' }}
+          Analyze
         </button>
       </div>
-      <div v-if="domainError" class="text-red-500 mb-4">{{ domainError }}</div>
-
-      <!-- Domain Analysis Results -->
-      <div v-if="domainResult" class="space-y-6">
-        <!-- WHOIS Information -->
-        <div class="bg-white p-4 rounded shadow">
-          <h4 class="font-semibold mb-2">WHOIS Information</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div v-for="(value, key) in domainResult.whois" :key="key" class="p-2 bg-gray-50 rounded">
-              <span class="font-medium">{{ formatKey(key) }}:</span>
-              <span class="ml-2">{{ formatValue(value) }}</span>
-            </div>
+      <div v-if="domainInfo" class="mt-4">
+        <h3 class="font-semibold mb-2">Domain Information:</h3>
+        <div class="bg-gray-100 p-4 rounded">
+          <div v-for="(value, key) in domainInfo" :key="key" class="mb-2">
+            <span class="font-medium">{{ formatKey(key) }}:</span>
+            <span>{{ formatValue(value) }}</span>
           </div>
         </div>
+        <button
+          v-if="currentReportId"
+          @click="downloadDomainReport"
+          class="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Download Report
+        </button>
+      </div>
+    </div>
 
-        <!-- Subdomains -->
-        <div class="bg-white p-4 rounded shadow">
-          <h4 class="font-semibold mb-2">Subdomains ({{ domainResult.subdomains.total_subdomains }})</h4>
-          <div class="grid grid-cols-3 gap-2">
-            <div v-for="subdomain in domainResult.subdomains.subdomains" :key="subdomain" class="p-2 bg-gray-50 rounded">
-              {{ subdomain }}
-            </div>
+    <!-- Username Search Section -->
+    <div class="mb-8">
+      <h2 class="text-xl font-semibold mb-2">Username Search</h2>
+      <div class="flex gap-2">
+        <input
+          v-model="username"
+          type="text"
+          placeholder="Enter username"
+          class="flex-1 p-2 border rounded"
+        />
+        <button
+          @click="searchUsername"
+          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          :disabled="isSearching"
+        >
+          {{ isSearching ? 'Searching...' : 'Search' }}
+        </button>
+      </div>
+      <div v-if="usernameResults" class="mt-4">
+        <h3 class="font-semibold mb-2">Search Results:</h3>
+        <div class="bg-gray-100 p-4 rounded">
+          <div v-if="usernameResults.error" class="text-red-500 mb-2">
+            {{ usernameResults.error }}
+          </div>
+          <div v-else>
+            <p class="mb-2">Found {{ usernameResults.found_count }} profiles</p>
+            <ul class="list-disc pl-5">
+              <li v-for="profile in usernameResults.profiles" :key="profile" class="mb-1">
+                <a :href="profile" target="_blank" class="text-blue-500 hover:underline">
+                  {{ profile }}
+                </a>
+              </li>
+            </ul>
           </div>
         </div>
-
-        <!-- DNS Records -->
-        <div class="bg-white p-4 rounded shadow">
-          <h4 class="font-semibold mb-2">DNS Records ({{ domainResult.dns_records.total_records }})</h4>
-          <div class="space-y-2">
-            <div v-for="(record, index) in domainResult.dns_records.records" :key="index" class="p-2 bg-gray-50 rounded">
-              <div class="grid grid-cols-3 gap-4">
-                <div><span class="font-medium">Name:</span> {{ record.name }}</div>
-                <div><span class="font-medium">Type:</span> {{ record.type }}</div>
-                <div><span class="font-medium">Value:</span> {{ record.value }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <button
+          v-if="currentReportId"
+          @click="downloadUsernameReport"
+          class="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Download Report
+        </button>
       </div>
     </div>
   </div>
@@ -103,63 +127,84 @@ export default {
   data() {
     return {
       ipAddress: '',
+      ipInfo: null,
       domain: '',
-      ipResult: null,
-      domainResult: null,
-      ipError: null,
-      domainError: null,
-      isLoading: false
+      domainInfo: null,
+      username: '',
+      usernameResults: null,
+      isSearching: false,
+      currentReportId: null
     };
   },
   methods: {
     formatKey(key) {
-      return key
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+      return key.split('_').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
     },
     formatValue(value) {
-      if (Array.isArray(value)) {
-        return value.join(', ');
+      if (typeof value === 'object') {
+        return JSON.stringify(value, null, 2);
       }
       return value;
     },
     async lookupIp() {
-      if (!this.ipAddress) {
-        this.ipError = 'Please enter an IP address';
-        return;
-      }
-
-      this.isLoading = true;
-      this.ipError = null;
-      this.ipResult = null;
-
       try {
-        const response = await axios.get(`http://localhost:3000/api/netint/ip?ip=${this.ipAddress}`);
-        this.ipResult = response.data;
+        const response = await axios.get(`/api/netint/ip?ip=${this.ipAddress}`);
+        this.ipInfo = response.data;
+        this.currentReportId = response.data.report_id;
       } catch (error) {
-        this.ipError = error.response?.data?.error || 'Failed to lookup IP address';
-      } finally {
-        this.isLoading = false;
+        console.error('Error looking up IP:', error);
+        this.ipInfo = { error: error.response?.data?.error || 'Failed to lookup IP' };
       }
     },
     async analyzeDomain() {
-      if (!this.domain) {
-        this.domainError = 'Please enter a domain';
+      try {
+        const response = await axios.get(`/api/netint/domain/analyze?domain=${this.domain}`);
+        this.domainInfo = response.data;
+        this.currentReportId = response.data.report_id;
+      } catch (error) {
+        console.error('Error analyzing domain:', error);
+        this.domainInfo = { error: error.response?.data?.error || 'Failed to analyze domain' };
+      }
+    },
+    async searchUsername() {
+      if (!this.username.trim()) {
+        this.usernameResults = { error: 'Please enter a username' };
         return;
       }
 
-      this.isLoading = true;
-      this.domainError = null;
-      this.domainResult = null;
+      this.isSearching = true;
+      this.usernameResults = null;
 
       try {
-        const response = await axios.get(`http://localhost:3000/api/netint/domain/analyze?domain=${this.domain}`);
-        this.domainResult = response.data;
+        const response = await axios.post('/api/sherlock', {
+          username: this.username.trim()
+        });
+        this.usernameResults = response.data;
+        this.currentReportId = response.data.report_id;
       } catch (error) {
-        this.domainError = error.response?.data?.error || 'Failed to analyze domain';
+        console.error('Error searching username:', error);
+        this.usernameResults = {
+          error: error.response?.data?.error || 'Failed to search username'
+        };
       } finally {
-        this.isLoading = false;
+        this.isSearching = false;
+      }
+    },
+    downloadIpReport() {
+      if (this.currentReportId) {
+        window.location.href = `/api/reports/${this.currentReportId}/download`;
+      }
+    },
+    downloadDomainReport() {
+      if (this.currentReportId) {
+        window.location.href = `/api/reports/${this.currentReportId}/download`;
+      }
+    },
+    downloadUsernameReport() {
+      if (this.currentReportId) {
+        window.location.href = `/api/reports/${this.currentReportId}/download`;
       }
     }
   }
@@ -167,37 +212,7 @@ export default {
 </script>
 
 <style scoped>
-.network-intelligence {
+.container {
   max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.grid {
-  display: grid;
-}
-
-.grid-cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.grid-cols-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-.gap-4 {
-  gap: 1rem;
-}
-
-.space-y-2 > * + * {
-  margin-top: 0.5rem;
-}
-
-.space-y-6 > * + * {
-  margin-top: 1.5rem;
 }
 </style> 

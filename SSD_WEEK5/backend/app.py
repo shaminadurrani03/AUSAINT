@@ -3,6 +3,7 @@ from flask_cors import CORS
 from config import Config
 from routes.intelligence_routes import intelligence_bp
 from routes.network_intelligence_routes import network_intelligence_bp
+from extensions import db
 import os
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -16,6 +17,14 @@ logger = logging.getLogger(__name__)
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Initialize database
+    db.init_app(app)
+    
+    # Create database tables
+    with app.app_context():
+        db.create_all()
+        logger.info("Database tables created successfully")
 
     # Enable CORS for all origins in development
     CORS(app, resources={
