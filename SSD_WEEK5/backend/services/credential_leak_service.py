@@ -1,12 +1,13 @@
 import aiohttp
 import logging
-from typing import Dict, List
+from typing import Dict, List, Any
 import json
 import re
 import traceback
 import ssl
 import certifi
 import random
+import requests
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +18,7 @@ class CredentialLeakService:
         self.base_url = "https://breachdirectory.org/api"
         # Create SSL context with certificate verification
         self.ssl_context = ssl.create_default_context(cafile=certifi.where())
+        self.api_key = "YOUR_HIBP_API_KEY"  # Replace with your HaveIBeenPwned API key
         logger.info("Initialized CredentialLeakService")
         
         # Sample breach data for testing
@@ -139,4 +141,54 @@ class CredentialLeakService:
                 'success': False,
                 'error': str(e),
                 'details': error_details
+            }
+
+    def check_leaks(self, email: str) -> Dict[str, Any]:
+        """
+        Check if an email has been involved in any data breaches
+        """
+        try:
+            logger.info(f"Checking credential leaks for email: {email}")
+            
+            # Make request to HaveIBeenPwned API
+            headers = {
+                'hibp-api-key': self.api_key,
+                'user-agent': 'AUSAINT-OSINT-Tool'
+            }
+            
+            # Check breaches
+            breach_url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
+            breach_response = requests.get(breach_url, headers=headers)
+            
+            # Check pastes
+            paste_url = f"https://haveibeenpwned.com/api/v3/pasteaccount/{email}"
+            paste_response = requests.get(paste_url, headers=headers)
+            
+            breaches = breach_response.json() if breach_response.status_code == 200 else []
+            pastes = paste_response.json() if paste_response.status_code == 200 else []
+            
+            result = {
+                "success": True,
+                "email": email,
+                "breaches": breaches,
+                "pastes": pastes,
+                "total_breaches": len(breaches),
+                "total_pastes": len(pastes),
+                "risk_level": "high" if len(breaches) > 0 or len(pastes) > 0 else "low"
+            }
+            
+            logger.info(f"Successfully processed results: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error checking credential leaks: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "email": email,
+                "breaches": [],
+                "pastes": [],
+                "total_breaches": 0,
+                "total_pastes": 0,
+                "risk_level": "unknown"
             } 
