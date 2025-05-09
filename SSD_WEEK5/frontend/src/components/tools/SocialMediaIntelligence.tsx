@@ -44,6 +44,35 @@ export function SocialMediaIntelligence() {
     }
   };
 
+  const handleLeakCheck = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setLeakResults(null);
+
+    try {
+      const response = await fetch('http://localhost:3000/api/credential-leak', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to check credential leaks');
+      }
+
+      const data = await response.json();
+      setLeakResults(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getCategoryColor = (category: string) => {
     const colors = {
       social: "bg-blue-100 text-blue-800",
@@ -160,16 +189,72 @@ export function SocialMediaIntelligence() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
+              <form onSubmit={handleLeakCheck} className="space-y-4">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" placeholder="Enter email to check for breaches" />
+                  <Input 
+                    id="email" 
+                    placeholder="Enter email to check for breaches"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    type="email"
+                    required
+                  />
                 </div>
-                <Button>
-                  <Search className="h-4 w-4 mr-2" />
-                  Check Breaches
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4 mr-2" />
+                      Check Breaches
+                    </>
+                  )}
                 </Button>
-              </div>
+              </form>
+
+              {error && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {leakResults && (
+                <div className="mt-4 space-y-4">
+                  <Alert variant={leakResults.status === 'completed' ? 'default' : 'destructive'}>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Report Status: {leakResults.status}</AlertTitle>
+                    <AlertDescription>
+                      {leakResults.status === 'completed' 
+                        ? `Found ${leakResults.result?.email_leaks?.total_breaches || 0} breaches`
+                        : 'Processing your request...'}
+                    </AlertDescription>
+                  </Alert>
+
+                  {leakResults.status === 'completed' && leakResults.result?.email_leaks?.breaches && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Found in Breaches:</h4>
+                      <div className="grid gap-2">
+                        {leakResults.result.email_leaks.breaches.map((breach, index) => (
+                          <Card key={index}>
+                            <CardHeader>
+                              <CardTitle className="text-sm">{breach.title}</CardTitle>
+                              <CardDescription>
+                                {breach.description}
+                              </CardDescription>
+                            </CardHeader>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

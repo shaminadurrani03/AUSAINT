@@ -4,6 +4,11 @@ from typing import Dict, List
 import json
 import re
 import traceback
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -11,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 class CredentialLeakService:
     def __init__(self):
-        self.base_url = "https://leakcheck.io/api/public"
+        self.base_url = "https://leakcheck.io/api"
+        self.api_key = os.getenv("LEAKCHECK_API_KEY", "your_api_key_here")  # Replace with your actual API key
         logger.info("Initialized CredentialLeakService")
 
     async def check_credential_leaks(self, email: str) -> Dict:
@@ -38,10 +44,15 @@ class CredentialLeakService:
 
             logger.info(f"Making request to LeakCheck API for email: {email}")
             async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}?check={email}"
+                url = f"{self.base_url}/check"
+                params = {
+                    'key': self.api_key,
+                    'check': email,
+                    'type': 'email'
+                }
                 logger.info(f"Request URL: {url}")
                 
-                async with session.get(url) as response:
+                async with session.get(url, params=params) as response:
                     response_text = await response.text()
                     logger.info(f"API Response Status: {response.status}")
                     logger.info(f"API Response: {response_text}")
@@ -64,7 +75,7 @@ class CredentialLeakService:
                     
                     # Process the results
                     breaches = []
-                    if data.get('found', 0) > 0:
+                    if data.get('success'):
                         for source in data.get('sources', []):
                             breaches.append({
                                 'name': source,
@@ -122,10 +133,15 @@ class CredentialLeakService:
                 }
 
             async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}?check={password}"
+                url = f"{self.base_url}/check"
+                params = {
+                    'key': self.api_key,
+                    'check': password,
+                    'type': 'password'
+                }
                 logger.info(f"Request URL: {url}")
                 
-                async with session.get(url) as response:
+                async with session.get(url, params=params) as response:
                     response_text = await response.text()
                     logger.info(f"API Response Status: {response.status}")
                     logger.info(f"API Response: {response_text}")
@@ -146,7 +162,7 @@ class CredentialLeakService:
                             'error': 'Invalid API response format'
                         }
 
-                    is_leaked = data.get('found', 0) > 0
+                    is_leaked = data.get('success', False) and len(data.get('sources', [])) > 0
                     times_leaked = len(data.get('sources', []))
 
                     result = {
