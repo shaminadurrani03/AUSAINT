@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models.report import Report
+from models import Report
 from extensions import db
 from middleware.auth import require_auth
 from services.sherlock_service import SherlockService, search_username

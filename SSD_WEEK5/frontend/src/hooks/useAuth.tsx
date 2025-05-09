@@ -1,8 +1,7 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { logAuditAction } from '@/lib/supabase/security';
+import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,22 +31,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Set up the auth state listener
   useEffect(() => {
-    // Set up the auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         console.log('Auth state changed:', event);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         setIsLoading(false);
-
-        // Log important auth events
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          logAuditAction('session_' + event.toLowerCase(), 'auth', currentSession?.user?.id)
-            .catch(error => console.error('Failed to log audit action:', error));
-        } else if (event === 'SIGNED_OUT') {
-          logAuditAction('session_signed_out', 'auth')
-            .catch(error => console.error('Failed to log audit action:', error));
-        }
       }
     );
 
@@ -67,7 +56,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
 
-    // Cleanup subscription
     return () => {
       subscription.unsubscribe();
     };
@@ -79,10 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       console.log('Attempting to sign in:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await api.auth.signIn(email, password);
       
       if (error) {
         console.error('Login error:', error);
@@ -96,15 +81,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (data?.user) {
         console.log('Login successful for user:', data.user.id);
-        // Log successful login to audit log
-        await logAuditAction("login", "user", data.user.id);
-        
         toast({
           title: "Login successful",
           description: "Welcome back to AUSAINT OSINT Suite",
         });
-        
-        // Redirect to dashboard
         navigate("/dashboard");
       }
     } catch (error: any) {
@@ -123,20 +103,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
       setIsLoading(true);
-      console.log('Attempting to sign up:', email);
+      console.log('Starting signup process for:', email);
       
-      // Sign up with email, password and meta data
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-          // Disable email confirmation requirement for smoother testing
-          emailRedirectTo: window.location.origin + '/auth'
-        }
-      });
+      const { data, error } = await api.auth.signUp(email, password, fullName);
       
       if (error) {
         console.error('Signup error:', error);
@@ -148,11 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      console.log('Signup response:', data);
-      
       if (data?.user) {
-        // Check if email confirmation is required
+        console.log('User created successfully:', data.user.id);
+        
         if (data.session === null) {
+          console.log('Email confirmation required');
           toast({
             title: "Account created",
             description: "Please check your email to confirm your account before logging in.",
@@ -160,18 +129,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
-        // If no email confirmation required, we have a session
-        console.log('Account created for user:', data.user.id);
-        
-        // Log successful signup to audit log
-        await logAuditAction("signup", "user", data.user.id);
-        
         toast({
           title: "Account created",
           description: "Welcome to AUSAINT OSINT Suite",
         });
         
-        // Redirect to dashboard
         navigate("/dashboard");
       }
     } catch (error: any) {
@@ -190,16 +152,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       setIsLoading(true);
-      await supabase.auth.signOut();
-      navigate("/");
+      const { error } = await api.auth.signOut();
+      
+      if (error) {
+        console.error('Signout error:', error);
+        toast({
+          title: "Signout failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       toast({
-        title: "Logged out",
-        description: "You have been successfully logged out",
+        title: "Signed out",
+        description: "You have been successfully signed out.",
       });
+      
+      navigate("/auth");
     } catch (error: any) {
+      console.error('Unexpected signout error:', error);
       toast({
-        title: "Logout error",
-        description: error?.message || "An unexpected error occurred during logout",
+        title: "Signout error",
+        description: error?.message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -207,21 +182,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const value = {
-    user,
-    session,
-    isLoading,
-    isAuthenticated: !!user,
-    signIn,
-    signUp,
-    signOut,
-    configError
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{
+      user,
+      session,
+      isLoading,
+      isAuthenticated: !!session,
+      signIn,
+      signUp,
+      signOut,
+      configError
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-// Hook for consuming the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

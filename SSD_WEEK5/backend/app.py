@@ -13,10 +13,11 @@ def create_app():
 
     # Enable CORS
     CORS(app, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:8080"],  # Frontend URL
+        r"/*": {  # Allow all routes
+            "origins": ["http://localhost:5173"],  # Vite's default port
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
         }
     })
 

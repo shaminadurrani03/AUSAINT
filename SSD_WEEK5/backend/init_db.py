@@ -1,14 +1,9 @@
 from app import create_app
 from extensions import db
-from models.user import User
-from models.report import Report
+from models import Report, User
 
-def init_db():
-    app = create_app()
-    with app.app_context():
-        # Create all tables
-        db.create_all()
-        print("Database tables created successfully!")
+app = create_app()
 
-if __name__ == "__main__":
-    init_db() 
+with app.app_context():
+    db.create_all()
+    print("Database tables created successfully!") 
