@@ -1,7 +1,8 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from config import Config
 from routes.intelligence_routes import intelligence_bp
+from routes.network_intelligence_routes import network_intelligence_bp
 import os
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -35,6 +36,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(intelligence_bp, url_prefix="/api")
+    app.register_blueprint(network_intelligence_bp)
 
     @app.route('/')
     def index():
