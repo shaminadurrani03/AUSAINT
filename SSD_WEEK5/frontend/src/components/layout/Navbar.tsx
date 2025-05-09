@@ -1,10 +1,10 @@
-
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Bell, Menu, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,20 @@ import {
 
 export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
+
+  const handleProfile = () => {
+    navigate("/profile");
+  };
+
+  const handleSettings = () => {
+    navigate("/settings");
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -62,12 +76,16 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleProfile}>
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSettings}>
+                Settings
+              </DropdownMenuItem>
               <DropdownMenuItem>API Keys</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Link to="/auth" className="w-full">Log out</Link>
+              <DropdownMenuItem onClick={handleLogout}>
+                Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

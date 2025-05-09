@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard, { DashboardTools } from "./pages/Dashboard";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,10 @@ const App = () => (
               <Route path="web-scraping" element={<DashboardTools.WebScraping />} />
               <Route path="reporting" element={<DashboardTools.SecureReporting />} />
             </Route>
+
+            {/* User routes */}
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
