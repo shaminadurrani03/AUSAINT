@@ -1,12 +1,22 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
+import { AuthResponse, AuthTokenResponsePassword } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const API_URL = 'http://localhost:5001';
 
 export const api = {
   // Auth endpoints
   auth: {
-    signUp: async (email: string, password: string, fullName: string) => {
-      return await supabase.auth.signUp({
+    signUp: async (email: string, password: string, fullName: string): Promise<AuthResponse> => {
+      return supabase.auth.signUp({
         email,
         password,
         options: {
@@ -17,39 +27,27 @@ export const api = {
       });
     },
 
-    signIn: async (email: string, password: string) => {
-      return await supabase.auth.signInWithPassword({
+    signIn: async (email: string, password: string): Promise<AuthTokenResponsePassword> => {
+      return supabase.auth.signInWithPassword({
         email,
         password,
       });
     },
 
     signOut: async () => {
-      return await supabase.auth.signOut();
+      return supabase.auth.signOut();
     },
 
     updatePassword: async (currentPassword: string, newPassword: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user found");
-
-      // First verify the current password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email!,
-        password: currentPassword,
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
       });
-      if (signInError) throw new Error("Current password is incorrect");
-
-      // Then update to the new password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-      if (updateError) throw updateError;
+      if (error) throw error;
     },
 
     toggle2FA: async (enable: boolean) => {
-      // Implement 2FA toggle logic here
-      // This would typically involve calling your backend API
-      throw new Error("2FA not implemented yet");
+      // TODO: Implement 2FA toggle
+      throw new Error('2FA not implemented yet');
     },
   },
 
@@ -146,6 +144,17 @@ export const api = {
         body: JSON.stringify({ [type]: target })
       });
       return response.json();
+    }
+  },
+
+  osint: {
+    searchUsername: async (username: string) => {
+      const { data, error } = await supabase.functions.invoke('search-username', {
+        body: { username }
+      });
+      
+      if (error) throw error;
+      return data;
     }
   }
 }; 

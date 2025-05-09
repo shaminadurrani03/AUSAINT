@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Search, Share, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,33 +7,52 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { api } from "@/lib/api";
 
 export function SocialMediaIntelligence() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<null | {
     found: { name: string; url: string; category: string }[];
   }>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username) return;
     
     setLoading(true);
+    setError(null);
     
-    // Simulate API call with timeout
-    setTimeout(() => {
-      setResults({
-        found: [
-          { name: "Twitter", url: `https://twitter.com/${username}`, category: "social" },
-          { name: "GitHub", url: `https://github.com/${username}`, category: "tech" },
-          { name: "Instagram", url: `https://instagram.com/${username}`, category: "social" },
-          { name: "LinkedIn", url: `https://linkedin.com/in/${username}`, category: "professional" },
-          { name: "Reddit", url: `https://reddit.com/user/${username}`, category: "forum" },
-        ],
-      });
+    try {
+      const response = await api.osint.searchUsername(username);
+      if (response.success) {
+        setResults({
+          found: response.results
+        });
+      } else {
+        setError(response.error || 'Failed to search username');
+      }
+    } catch (err) {
+      setError('An error occurred while searching for the username');
+      console.error('Error searching username:', err);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    const colors = {
+      social: "bg-blue-100 text-blue-800",
+      tech: "bg-purple-100 text-purple-800",
+      professional: "bg-green-100 text-green-800",
+      forum: "bg-orange-100 text-orange-800",
+      media: "bg-red-100 text-red-800",
+      gaming: "bg-indigo-100 text-indigo-800",
+      blog: "bg-yellow-100 text-yellow-800",
+      other: "bg-gray-100 text-gray-800"
+    };
+    return colors[category as keyof typeof colors] || colors.other;
   };
 
   return (
@@ -77,50 +95,57 @@ export function SocialMediaIntelligence() {
                   </div>
                 </div>
               </form>
+
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md">
+                  {error}
+                </div>
+              )}
+
+              {results && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">Found Profiles</h3>
+                    <Badge variant="secondary">
+                      {results.found.length} results
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <div className="grid gap-4">
+                    {results.found.map((profile) => (
+                      <Card key={profile.name}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                                <User className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <h4 className="font-medium">{profile.name}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {profile.url}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getCategoryColor(profile.category)}>
+                                {profile.category}
+                              </Badge>
+                              <Button variant="ghost" size="icon" asChild>
+                                <a href={profile.url} target="_blank" rel="noopener noreferrer">
+                                  <Share className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {results && (
-            <div className="result-card space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Results for "{username}"</h3>
-                <Button variant="outline" size="sm">
-                  <Share className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {results.found.map((profile) => (
-                    <Card key={profile.name} className="overflow-hidden">
-                      <div className="bg-primary/10 p-4">
-                        <User className="h-8 w-8 text-primary" />
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold">{profile.name}</h4>
-                            <a 
-                              href={profile.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-sm text-primary hover:underline truncate block"
-                            >
-                              {profile.url}
-                            </a>
-                          </div>
-                          <Badge variant="secondary">{profile.category}</Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </TabsContent>
         
         <TabsContent value="leaks">
