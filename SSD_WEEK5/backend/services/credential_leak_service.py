@@ -4,11 +4,6 @@ from typing import Dict, List
 import json
 import re
 import traceback
-import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -16,13 +11,12 @@ logger = logging.getLogger(__name__)
 
 class CredentialLeakService:
     def __init__(self):
-        self.base_url = "https://leakcheck.io/api"
-        self.api_key = os.getenv("LEAKCHECK_API_KEY", "your_api_key_here")  # Replace with your actual API key
+        self.base_url = "https://breachdirectory.org/api"
         logger.info("Initialized CredentialLeakService")
 
     async def check_credential_leaks(self, email: str) -> Dict:
         """
-        Check if an email has been involved in any data breaches using LeakCheck.io
+        Check if an email has been involved in any data breaches using BreachDirectory
         """
         try:
             logger.info(f"Checking credential leaks for email: {email}")
@@ -42,23 +36,18 @@ class CredentialLeakService:
                     'error': 'Invalid email format'
                 }
 
-            logger.info(f"Making request to LeakCheck API for email: {email}")
+            logger.info(f"Making request to BreachDirectory API for email: {email}")
             async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}/check"
-                params = {
-                    'key': self.api_key,
-                    'check': email,
-                    'type': 'email'
-                }
+                url = f"{self.base_url}?q={email}"
                 logger.info(f"Request URL: {url}")
                 
-                async with session.get(url, params=params) as response:
+                async with session.get(url) as response:
                     response_text = await response.text()
                     logger.info(f"API Response Status: {response.status}")
                     logger.info(f"API Response: {response_text}")
                     
                     if response.status != 200:
-                        logger.error(f"LeakCheck API error: {response.status} - {response_text}")
+                        logger.error(f"BreachDirectory API error: {response.status} - {response_text}")
                         return {
                             'success': False,
                             'error': f"API request failed: {response.status}"
@@ -75,21 +64,22 @@ class CredentialLeakService:
                     
                     # Process the results
                     breaches = []
-                    if data.get('success'):
-                        for source in data.get('sources', []):
-                            breaches.append({
-                                'name': source,
-                                'title': f"Leak from {source}",
-                                'breach_date': 'Unknown',  # LeakCheck doesn't provide dates
-                                'description': f"Found in {source} data leak",
-                                'data_classes': ['Email addresses', 'Passwords']
-                            })
+                    if isinstance(data, list):
+                        for entry in data:
+                            breach = {
+                                'name': entry.get('name', 'Unknown'),
+                                'title': entry.get('title', 'Unknown Breach'),
+                                'breach_date': entry.get('date', 'Unknown'),
+                                'description': entry.get('description', 'No description available'),
+                                'data_classes': entry.get('data_classes', ['Unknown'])
+                            }
+                            breaches.append(breach)
 
                     result = {
                         'success': True,
                         'email': email,
                         'breaches': breaches,
-                        'pastes': [],  # LeakCheck doesn't provide paste information
+                        'pastes': [],  # BreachDirectory doesn't provide paste information
                         'total_breaches': len(breaches),
                         'total_pastes': 0,
                         'risk_level': self._calculate_risk_level(len(breaches))
@@ -120,7 +110,7 @@ class CredentialLeakService:
 
     async def check_password_leak(self, password: str) -> Dict:
         """
-        Check if a password has been leaked using LeakCheck.io
+        Check if a password has been leaked using BreachDirectory
         """
         try:
             logger.info("Checking password leak")
@@ -133,21 +123,16 @@ class CredentialLeakService:
                 }
 
             async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}/check"
-                params = {
-                    'key': self.api_key,
-                    'check': password,
-                    'type': 'password'
-                }
+                url = f"{self.base_url}?q={password}"
                 logger.info(f"Request URL: {url}")
                 
-                async with session.get(url, params=params) as response:
+                async with session.get(url) as response:
                     response_text = await response.text()
                     logger.info(f"API Response Status: {response.status}")
                     logger.info(f"API Response: {response_text}")
                     
                     if response.status != 200:
-                        logger.error(f"LeakCheck API error: {response.status} - {response_text}")
+                        logger.error(f"BreachDirectory API error: {response.status} - {response_text}")
                         return {
                             'success': False,
                             'error': f"API request failed: {response.status}"
@@ -162,8 +147,8 @@ class CredentialLeakService:
                             'error': 'Invalid API response format'
                         }
 
-                    is_leaked = data.get('success', False) and len(data.get('sources', [])) > 0
-                    times_leaked = len(data.get('sources', []))
+                    is_leaked = isinstance(data, list) and len(data) > 0
+                    times_leaked = len(data) if isinstance(data, list) else 0
 
                     result = {
                         'success': True,
