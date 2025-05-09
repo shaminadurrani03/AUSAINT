@@ -6,29 +6,93 @@ export const api = {
   // Auth endpoints
   auth: {
     signUp: async (email: string, password: string, fullName: string) => {
-      const { data, error } = await supabase.auth.signUp({
+      return await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/auth`
-        }
+          data: {
+            full_name: fullName,
+          },
+        },
       });
-      return { data, error };
     },
 
     signIn: async (email: string, password: string) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      return await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
-      return { data, error };
     },
 
     signOut: async () => {
-      const { error } = await supabase.auth.signOut();
-      return { error };
-    }
+      return await supabase.auth.signOut();
+    },
+
+    updatePassword: async (currentPassword: string, newPassword: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      // First verify the current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: currentPassword,
+      });
+      if (signInError) throw new Error("Current password is incorrect");
+
+      // Then update to the new password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
+    },
+
+    toggle2FA: async (enable: boolean) => {
+      // Implement 2FA toggle logic here
+      // This would typically involve calling your backend API
+      throw new Error("2FA not implemented yet");
+    },
+  },
+
+  settings: {
+    getApiKey: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select("api_key")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          // If no settings exist, create them
+          return await api.settings.generateApiKey();
+        }
+        throw error;
+      }
+
+      return { apiKey: data.api_key };
+    },
+
+    generateApiKey: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const newApiKey = crypto.randomUUID();
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .upsert({
+          user_id: user.id,
+          api_key: newApiKey,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { apiKey: data.api_key };
+    },
   },
 
   // Intelligence endpoints

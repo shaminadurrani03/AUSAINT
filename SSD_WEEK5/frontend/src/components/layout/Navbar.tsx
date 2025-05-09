@@ -31,6 +31,10 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
     navigate("/settings");
   };
 
+  const handleApiKeys = () => {
+    navigate("/settings#api-keys");
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center px-4">
@@ -82,7 +86,9 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
               <DropdownMenuItem onClick={handleSettings}>
                 Settings
               </DropdownMenuItem>
-              <DropdownMenuItem>API Keys</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleApiKeys}>
+                API Keys
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 Log out

@@ -32,6 +32,8 @@ export function ThemeProvider({
 
   useEffect(() => {
     const root = window.document.documentElement;
+    
+    // Remove existing theme classes
     root.classList.remove("light", "dark");
 
     if (theme === "system") {
@@ -43,7 +45,11 @@ export function ThemeProvider({
       return;
     }
 
+    // Apply the selected theme
     root.classList.add(theme);
+    
+    // Force a reflow to ensure the theme is applied
+    root.offsetHeight;
   }, [theme]);
 
   const value = {

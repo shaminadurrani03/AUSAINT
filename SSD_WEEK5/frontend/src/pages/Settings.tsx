@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,15 @@ import { useTheme } from "@/components/theme-provider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import { useLocation } from "react-router-dom";
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
+  const apiKeysRef = useRef<HTMLDivElement>(null);
   const [isDarkMode, setIsDarkMode] = useState(theme === "dark");
   const [isEmailNotifications, setIsEmailNotifications] = useState(false);
   const [reportFormat, setReportFormat] = useState("pdf");
@@ -21,18 +25,52 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
 
   // Update isDarkMode when theme changes
   useEffect(() => {
     setIsDarkMode(theme === "dark");
   }, [theme]);
 
+  // Handle hash navigation
+  useEffect(() => {
+    if (location.hash === "#api-keys" && apiKeysRef.current) {
+      apiKeysRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [location.hash]);
+
+  // Fetch API key on component mount
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const response = await api.settings.getApiKey();
+        setApiKey(response.apiKey);
+      } catch (error) {
+        console.error("Failed to fetch API key:", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch API key",
+          variant: "destructive",
+        });
+      }
+    };
+    fetchApiKey();
+  }, [toast]);
+
   const handleDarkModeToggle = (checked: boolean) => {
+    const newTheme = checked ? "dark" : "light";
+    setTheme(newTheme);
     setIsDarkMode(checked);
-    setTheme(checked ? "dark" : "light");
+    
+    // Force immediate theme application
+    const root = window.document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(newTheme);
+    
     toast({
       title: "Theme updated",
-      description: `Switched to ${checked ? "dark" : "light"} mode`,
+      description: `Switched to ${newTheme} mode`,
     });
   };
 
@@ -47,11 +85,14 @@ export default function Settings() {
     }
 
     try {
-      // Here you would typically call your API to change the password
+      await api.auth.updatePassword(currentPassword, newPassword);
       toast({
         title: "Success",
         description: "Password changed successfully",
       });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (error) {
       toast({
         title: "Error",
@@ -63,7 +104,7 @@ export default function Settings() {
 
   const handle2FAToggle = async () => {
     try {
-      // Here you would typically call your API to enable/disable 2FA
+      await api.auth.toggle2FA(!is2FAEnabled);
       setIs2FAEnabled(!is2FAEnabled);
       toast({
         title: "Success",
@@ -76,6 +117,31 @@ export default function Settings() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleGenerateApiKey = async () => {
+    try {
+      const response = await api.settings.generateApiKey();
+      setApiKey(response.apiKey);
+      toast({
+        title: "Success",
+        description: "New API key generated successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate API key",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyApiKey = () => {
+    navigator.clipboard.writeText(apiKey);
+    toast({
+      title: "Success",
+      description: "API key copied to clipboard",
+    });
   };
 
   return (
@@ -197,6 +263,43 @@ export default function Settings() {
                   checked={is2FAEnabled}
                   onCheckedChange={handle2FAToggle}
                 />
+              </div>
+
+              <div ref={apiKeysRef} id="api-keys" className="space-y-4">
+                <div className="space-y-2">
+                  <Label>API Key</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Your API key for accessing the AUSAINT API
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type={showApiKey ? "text" : "password"}
+                    value={apiKey}
+                    readOnly
+                    className="font-mono"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? "Hide" : "Show"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyApiKey}
+                  >
+                    Copy
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleGenerateApiKey}
+                  >
+                    Generate New
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
