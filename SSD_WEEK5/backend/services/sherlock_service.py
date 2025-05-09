@@ -1,26 +1,52 @@
 import asyncio
 from typing import Dict, List
-from sherlock_project.sherlock import Sherlock
+import subprocess
+import json
+import os
+import sys
+
+# Add the Sherlock path to Python path
+SHERLOCK_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'api', 'sherlock')
+sys.path.append(SHERLOCK_PATH)
 
 class SherlockService:
     def __init__(self):
-        self.sherlock = Sherlock()
+        pass
 
     async def search_username(self, username: str) -> Dict:
         """
         Search for a username across various social media platforms using Sherlock
         """
         try:
-            # Run Sherlock search
-            results = await asyncio.to_thread(
-                self.sherlock.hunt,
+            # Run Sherlock as a subprocess
+            process = await asyncio.create_subprocess_exec(
+                'python3',
+                os.path.join(SHERLOCK_PATH, 'sherlock'),
                 username,
-                timeout=10,
-                no_color=True,
-                print_found=True,
-                json=True
+                '--timeout', '10',
+                '--print-found',
+                '--json',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+
+            stdout, stderr = await process.communicate()
             
+            if process.returncode != 0:
+                raise Exception(f"Sherlock failed: {stderr.decode()}")
+
+            # Parse the output
+            output = stdout.decode()
+            results = {}
+            for line in output.split('\n'):
+                if line.startswith('[+]'):
+                    # Extract site name and URL
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        site = parts[1]
+                        url = parts[2]
+                        results[site] = {'exists': True, 'url': url}
+
             # Process results
             found_accounts = []
             for site, data in results.items():
