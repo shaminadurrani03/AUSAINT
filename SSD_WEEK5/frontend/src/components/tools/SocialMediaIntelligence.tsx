@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Share, User } from "lucide-react";
+import { Search, Share, User, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,14 +8,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function SocialMediaIntelligence() {
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<null | {
     found: { name: string; url: string; category: string }[];
   }>(null);
+  const [leakResults, setLeakResults] = useState(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
