@@ -1,10 +1,10 @@
 from flask import Flask
 from flask_cors import CORS
-from config import Config
-from extensions import db
-from routes.auth_routes import auth_bp
-from routes.intelligence_routes import intelligence_bp
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from SSD_WEEK5.backend.config import Config
+from routes.intelligence_routes import intelligence_bp
 from asgiref.wsgi import WsgiToAsgi
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -35,20 +35,8 @@ def create_app():
         default_limits=["200 per day", "50 per hour"]
     )
 
-    # Initialize database
-    db.init_app(app)
-
     # Register blueprints
-    app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(intelligence_bp, url_prefix="/api")
-
-    # Create database tables
-    with app.app_context():
-        try:
-            db.create_all()
-            logger.info("Database tables created successfully")
-        except Exception as e:
-            logger.error(f"Error creating database tables: {str(e)}")
 
     @app.route('/')
     def index():
@@ -60,7 +48,4 @@ if __name__ == "__main__":
     app = create_app()
     port = int(os.environ.get('PORT', 5001))
     logger.info(f"Starting server on port {port}")
-    # Convert Flask app to ASGI
-    asgi_app = WsgiToAsgi(app)
-    import uvicorn
-    uvicorn.run(asgi_app, host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)

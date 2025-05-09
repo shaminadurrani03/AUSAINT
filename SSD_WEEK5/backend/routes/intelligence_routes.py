@@ -47,7 +47,6 @@ def get_report(report_id):
         return jsonify({'error': str(e)}), 500
 
 @intelligence_bp.route('/credential-leak', methods=['POST'])
-@require_auth
 @limiter.limit("10 per minute")
 async def credential_leak_check():
     try:
@@ -62,72 +61,30 @@ async def credential_leak_check():
             logger.error("No email provided in request")
             return jsonify({'error': 'Email is required'}), 400
 
-        # Create a new report
-        report = Report(
-            id=str(uuid.uuid4()),
-            user_id=request.user_id,
-            report_type='credential_leak',
-            target=email,
-            status='processing',
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        logger.info(f"Created new report with ID: {report.id}")
+        # Check for credential leaks
+        logger.info(f"Checking credential leaks for email: {email}")
+        leak_results = await credential_leak_service.check_credential_leaks(email)
+        logger.info(f"Leak check results: {leak_results}")
         
-        db.session.add(report)
-        db.session.commit()
-        logger.info("Report saved to database")
+        # If password is provided, check for password leaks
+        password_results = None
+        if password:
+            logger.info("Checking password leaks")
+            password_results = await credential_leak_service.check_password_leak(password)
+            logger.info(f"Password check results: {password_results}")
 
-        try:
-            # Check for credential leaks
-            logger.info(f"Checking credential leaks for email: {email}")
-            leak_results = await credential_leak_service.check_credential_leaks(email)
-            logger.info(f"Leak check results: {leak_results}")
-            
-            # If password is provided, check for password leaks
-            password_results = None
-            if password:
-                logger.info("Checking password leaks")
-                password_results = await credential_leak_service.check_password_leak(password)
-                logger.info(f"Password check results: {password_results}")
-
-            if leak_results.get('success'):
-                report.status = 'completed'
-                report.result = {
-                    'email_leaks': leak_results,
-                    'password_leak': password_results
-                }
-                logger.info("Report completed successfully")
-            else:
-                report.status = 'failed'
-                report.result = {
-                    'error': leak_results.get('error', 'Failed to check credential leaks'),
-                    'details': traceback.format_exc()
-                }
-                logger.error(f"Report failed: {report.result}")
-        except Exception as e:
-            error_details = traceback.format_exc()
-            logger.error(f"Error during leak check: {str(e)}\n{error_details}")
-            report.status = 'failed'
-            report.result = {
-                'error': str(e),
-                'details': error_details
-            }
-
-        db.session.commit()
-        logger.info("Updated report in database")
-        
         return jsonify({
-            'id': report.id,
-            'status': report.status,
-            'result': report.result
+            'status': 'completed',
+            'result': {
+                'email_leaks': leak_results,
+                'password_leak': password_results
+            }
         })
 
     except Exception as e:
-        error_details = traceback.format_exc()
-        logger.error(f"Error in credential_leak_check: {str(e)}\n{error_details}")
+        error_details = str(e)
+        logger.error(f"Error in credential_leak_check: {error_details}")
         return jsonify({
             'success': False,
-            'error': str(e),
-            'details': error_details
+            'error': error_details
         }), 500 
